@@ -1,0 +1,23 @@
+{
+# Interaction arguments
+"datapoint_length" : 512,
+"dataset" : "BabyLM-2026-Strict",
+"words_per_epoch" : 100000000,
+"n_epochs" : 10,
+"batch_size" : 16,
+
+"learning_rate" : 0.00005,
+"weight_decay" : 0,
+"warmup_ratio" : 0.01,
+"sft_learning_rate" : 0.00005,
+"gradient_clip_norm" : 1,
+"seed" : -1,
+
+# Experiment arguments
+"base_folder" : "experiments",
+"experiment_name" : "testing",
+
+"use_wandb" : False,
+"wandb_experiment_name" : "experiment_name",
+"wandb_project_name" : "babylm_gpt2",
+}

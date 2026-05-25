@@ -21,13 +21,20 @@ Data Processing
 The repository contains helper scripts to download the raw datasets for each challenge track, process and clean them and then train tokenizers for each one of them. These are meant to be examples and you may change them, improve on them or approach each component completely differently. To replicate the data processing for baseline training, run the following:
 
 ```
-bash experiment_scripts/download_datasets.sh                                 # Downloads the Strict, Strict-Small and nld/zho datasets from BabyLM-community
-bash experiment_scripts/clean_all_datasets.sh				     # Cleans each individual dataset
-bash experiment_scripts/split_all_parquet_datasets.sh			     # Splits the nld/zho dataset .parquet files to data source-specific parquet files
-bash experiment_scripts/build_all_multilingual.sh			     # Constructs multilingual datasets with different mixes of languages
-     							  		     # while taking into account each language's byte-premiums
-bash experiment_scripts/train_all_tokenizers.sh				     # Trains BPE tokenizers on each constructed dataset
+bash experiment_scripts/download_datasets.sh                                  
+bash experiment_scripts/clean_all_datasets.sh				      
+bash experiment_scripts/split_all_parquet_datasets.sh			      
+bash experiment_scripts/build_all_multilingual.sh			      
+     							  		      
+bash experiment_scripts/train_all_tokenizers.sh				     
 ```
+
+In sequence, this
+- Downloads the Strict, Strict-Small and nld/zho datasets from BabyLM-community
+- Cleans each individual dataset
+- Splits the nld/zho dataset .parquet files to data source-specific parquet files to match with the Strict/Strict-Small dataset formats
+- Constructs multilingual datasets with different mixes of languages while taking into account each language's byte-premiums
+- Trains BPE tokenizers on each constructed dataset
 
 Training
 --------

@@ -1,10 +1,11 @@
 """Upload word-count checkpoints for an interactive-DPO experiment to the HuggingFace Hub.
 
 For a given experiment (e.g. ``train_100m``) this script will:
-  1. Create a private model repo ``BabyLM-community/{repo_prefix}-{experiment}``.
+  1. Create a public model repo ``BabyLM-community/{repo_prefix}-{experiment}``
+     (use ``--private`` to make it private instead).
   2. Upload the checkpoint with the largest word count as the main revision.
   3. Upload every word-count checkpoint as its own revision, named
-     ``ckpt_<N>M`` (e.g. ``ckpt_1M``, ``ckpt_100M``, ``ckpt_1000M``).
+     ``chck_<N>M`` (e.g. ``chck_1M``, ``chck_100M``, ``chck_1000M``).
 
 Two sources of checkpoints are merged:
   - ``checkpoint_<N>M`` folders saved explicitly by training (covers 1M..100M).
@@ -104,7 +105,7 @@ def revision_is_complete(api: HfApi, repo_id: str, revision: str) -> bool:
 
 
 def revision_name(word_count_m: int) -> str:
-    return f"ckpt_{word_count_m}M"
+    return f"chck_{word_count_m}M"
 
 
 def collect_checkpoints(ckpt_root: Path) -> dict[int, Path]:
@@ -220,9 +221,9 @@ def main() -> None:
         help="Override dataset_size (default: read from logging/exp_cfg.yaml).",
     )
     parser.add_argument(
-        "--public",
+        "--private",
         action="store_true",
-        help="Create a public repo instead of private (default: private).",
+        help="Create a private repo instead of public (default: public).",
     )
     parser.add_argument(
         "--dry-run",
@@ -271,13 +272,13 @@ def main() -> None:
 
     repo_name = args.repo_name or f"{args.repo_prefix}-{exp}"
     repo_id = f"{args.org}/{repo_name}"
-    print(f"Target repo: {repo_id}  (private={not args.public})")
+    print(f"Target repo: {repo_id}  (private={args.private})")
 
     api = HfApi()
     if not args.dry_run:
         create_repo(
             repo_id=repo_id,
-            private=not args.public,
+            private=args.private,
             repo_type="model",
             exist_ok=True,
         )

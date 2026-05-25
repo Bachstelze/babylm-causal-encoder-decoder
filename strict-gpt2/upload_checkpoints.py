@@ -1,10 +1,10 @@
 """Upload word-count checkpoints for an experiment to the HuggingFace Hub.
 
 For a given experiment (e.g. ``BabyLM-2026-Strict``) this script will:
-  1. Create a private model repo ``{org}/{repo-prefix}-{experiment}``.
+  1. Create a public model repo ``BabyLM-community/gpt2-baseline-{experiment}``.
   2. Upload the checkpoint with the largest word count as the main revision.
   3. Upload every M/B-suffixed checkpoint as its own revision, named
-     ``ckpt_<N>M`` (e.g. ``ckpt_1M``, ``ckpt_100M``, ``ckpt_1000M`` for ``1B``).
+     ``chck_<N>M`` (e.g. ``chck_1M``, ``chck_100M``, ``chck_1000M`` for ``1B``).
 All revisions (and the main branch) include the config and tokenizer that
 match the experiment.
 """
@@ -107,14 +107,14 @@ def parse_word_count(dir_name: str):
 
 
 def revision_name(dir_name: str) -> str:
-    """Map ``epoch_1M`` -> ``ckpt_1M`` and ``epoch_1B`` -> ``ckpt_1000M``."""
+    """Map ``epoch_1M`` -> ``chck_1M`` and ``epoch_1B`` -> ``chck_1000M``."""
     m = CKPT_RE.match(dir_name)
     if not m:
         raise ValueError(f"Not a word-count checkpoint: {dir_name}")
     value, unit = int(m.group(1)), m.group(2)
     if unit == "B":
         value *= 1000
-    return f"ckpt_{value}M"
+    return f"chck_{value}M"
 
 
 def build_hf_model_dir(
@@ -162,19 +162,15 @@ def main() -> None:
         "experiment",
         help="Experiment folder name under experiments/ (e.g. BabyLM-2026-Strict)",
     )
-    parser.add_argument(
-        "--org",
-        required=True,
-        help="HuggingFace org/user that owns the destination repo.",
-    )
+    parser.add_argument("--org", default="BabyLM-community")
     parser.add_argument("--repo-prefix", default="gpt2-baseline")
     parser.add_argument("--experiments-dir", default="experiments")
     parser.add_argument("--configs-dir", default="configs")
     parser.add_argument("--tokenizers-dir", default="tokenizers")
     parser.add_argument(
-        "--public",
+        "--private",
         action="store_true",
-        help="Create a public repo instead of private (default: private).",
+        help="Create a private repo instead of public (default: public).",
     )
     parser.add_argument(
         "--dry-run",
@@ -231,13 +227,13 @@ def main() -> None:
     print(f"Main checkpoint: {max_ckpt}  ({word_ckpts[max_ckpt]:,} words)")
 
     repo_id = f"{args.org}/{args.repo_prefix}-{exp}"
-    print(f"Target repo: {repo_id}  (private={not args.public})")
+    print(f"Target repo: {repo_id}  (private={args.private})")
 
     api = HfApi()
     if not args.dry_run:
         create_repo(
             repo_id=repo_id,
-            private=not args.public,
+            private=args.private,
             repo_type="model",
             exist_ok=True,
         )

@@ -3,12 +3,14 @@
 # Minor utility functions
 
 import argparse
-import wandb
 import os
-import yaml
 import random
+
 import numpy as np
 import torch
+import wandb
+import yaml
+
 
 def mkdir(dirpath):
     if not os.path.exists(dirpath):
@@ -17,48 +19,82 @@ def mkdir(dirpath):
         except FileExistsError:
             pass
 
+
 def get_config():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--datapoint_length', type=int,
-                        help="The length of a datapoint, regardless of the underlying dataset")
-    parser.add_argument('--dataset', type=str,
-                        help="Dataset folder name under data/ (e.g. BabyLM-2026-Strict, en_nld_equal)")
-    parser.add_argument('--words_per_epoch', type=int,
-                        help="Number of words per epoch (e.g. 100000000 for 100M, 10000000 for 10M)")
+    parser.add_argument(
+        "--datapoint_length",
+        type=int,
+        help="The length of a datapoint, regardless of the underlying dataset",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        help="Dataset folder name under data/ (e.g. BabyLM-2026-Strict, en_nld_equal)",
+    )
+    parser.add_argument(
+        "--words_per_epoch",
+        type=int,
+        help="Number of words per epoch (e.g. 100000000 for 100M, 10000000 for 10M)",
+    )
 
     # Training hyperparameters
-    parser.add_argument('--n_epochs', type=int,
-                        help="Max number of epochs to train for a given round")
-    parser.add_argument('--batch_size', type=int,
-                        help="Batch size for training")
+    parser.add_argument(
+        "--n_epochs", type=int, help="Max number of epochs to train for a given round"
+    )
+    parser.add_argument("--batch_size", type=int, help="Batch size for training")
 
-    parser.add_argument('--learning_rate', type=float,
-                        help="The learning rate for training")
-    parser.add_argument('--weight_decay', type=float,
-                        help="The weight decay for training")
+    parser.add_argument(
+        "--learning_rate", type=float, help="The learning rate for training"
+    )
+    parser.add_argument(
+        "--weight_decay", type=float, help="The weight decay for training"
+    )
     # num_training_steps and num_warmup_steps are computed automatically
     # from the dataset size: total = epoch_steps * n_epochs, warmup = 1% of total
-    parser.add_argument('--gradient_clip_norm', type=float,
-                        help="Gradient clipping value, if used")
-    
+    parser.add_argument(
+        "--gradient_clip_norm", type=float, help="Gradient clipping value, if used"
+    )
+
+    # Causal activation
+    parser.add_argument(
+        "--causal_activation",
+        type=str,
+        default=None,
+        help=(
+            "Replace GPT2MLP activations with a causal reduction. "
+            "Modes: matrix, context, max_matrix, max_context, min_context, mean. "
+            "Leave unset to use standard GELU."
+        ),
+    )
+
     # Experiment hyperparameters
-    parser.add_argument('--seed', type=int,
-                        help="Random seed for reproducibility")
-    parser.add_argument('--base_folder', type=str,
-                        help="The name of the folder holding all experimentation data")
-    parser.add_argument('--experiment_name', type=str,
-                        help="The name of the current experiment")
-    parser.add_argument('--use_wandb', action='store_true',
-                        help="If set, we will use wandb to log experimental results")
-    parser.add_argument('--wandb_project_name', type=str,
-                        help="The project name for wandb")
-    parser.add_argument('--wandb_experiment_name', type=str,
-                        help="The experiment name for wandb")
+    parser.add_argument("--seed", type=int, help="Random seed for reproducibility")
+    parser.add_argument(
+        "--base_folder",
+        type=str,
+        help="The name of the folder holding all experimentation data",
+    )
+    parser.add_argument(
+        "--experiment_name", type=str, help="The name of the current experiment"
+    )
+    parser.add_argument(
+        "--use_wandb",
+        action="store_true",
+        help="If set, we will use wandb to log experimental results",
+    )
+    parser.add_argument(
+        "--wandb_project_name", type=str, help="The project name for wandb"
+    )
+    parser.add_argument(
+        "--wandb_experiment_name", type=str, help="The experiment name for wandb"
+    )
 
     args = parser.parse_args()
     config = construct_config(args)
     return config
+
 
 def setup_experiment(cfg):
     # Set the seed for reproducibility
@@ -69,34 +105,36 @@ def setup_experiment(cfg):
     torch.manual_seed(cfg["seed"])
     torch.cuda.manual_seed_all(cfg["seed"])
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False    
+    torch.backends.cudnn.benchmark = False
 
     # Make the relevant folders for the current experiment
-    cfg["expdir"] = os.path.join(
-        cfg["base_folder"],
-        cfg["experiment_name"]
-    )
-    cfg["checkpoint_dir"] = os.path.join(cfg["expdir"], 'checkpoints')
-    cfg["logdir"] = os.path.join(cfg["expdir"], 'logging')
+    cfg["expdir"] = os.path.join(cfg["base_folder"], cfg["experiment_name"])
+    cfg["checkpoint_dir"] = os.path.join(cfg["expdir"], "checkpoints")
+    cfg["logdir"] = os.path.join(cfg["expdir"], "logging")
     mkdir(cfg["expdir"])
     mkdir(cfg["checkpoint_dir"])
     mkdir(cfg["logdir"])
 
-    with open(os.path.join(cfg["logdir"], "exp_cfg.yaml"), 'w') as cfg_file:
+    with open(os.path.join(cfg["logdir"], "exp_cfg.yaml"), "w") as cfg_file:
         yaml.dump(cfg, cfg_file)
 
+
 def setup_wandb(cfg):
-    wandb_input = {"name" : cfg["wandb_experiment_name"],
-                   "project" : cfg["wandb_project_name"]}
+    wandb_input = {
+        "name": cfg["wandb_experiment_name"],
+        "project": cfg["wandb_project_name"],
+    }
     wandb.init(**wandb_input)
 
+
 def load_yaml(filepath):
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         data = yaml.safe_load(f)
     return data
 
+
 def construct_config(args):
-    base_path = os.path.join('config.yaml')
+    base_path = os.path.join("config.yaml")
     cfg = load_yaml(base_path)
 
     # Iterate over arguments and replace new arguments with defaults in the config

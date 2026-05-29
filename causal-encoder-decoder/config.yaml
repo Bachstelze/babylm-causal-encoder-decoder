@@ -35,6 +35,12 @@
   "decoder_n_inner": null,
   "decoder_activation_function": "gelu_new",
 
+  # Causal activations (set per module; overrides the activation_function strings above)
+  # Modes: matrix, context, max_matrix, max_context, min_context, mean
+  # Leave null to use the standard activation_function
+  "encoder_causal_activation": null,
+  "decoder_causal_activation": null,
+
   # Experiment arguments
   "base_folder": "experiments",
   "experiment_name": "testing",

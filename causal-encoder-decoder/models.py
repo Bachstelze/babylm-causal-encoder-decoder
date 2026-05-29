@@ -3,12 +3,17 @@
 # All functions related to loading and saving encoder-decoder models
 
 import os
+import sys
 
 import torch
 import transformers
 from transformers import EncoderDecoderConfig, EncoderDecoderModel, GPT2Config
 from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
 from utils import mkdir
+
+# Make causal_activation importable (sibling directory)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from causal_activation import patch_gpt2_activations  # noqa: E402
 
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
@@ -52,6 +57,23 @@ def _build_decoder_config(cfg):
 
 def initialize_model_and_optimizers(cfg):
     student = initialize_model(cfg)
+
+    # Apply causal activation replacement independently to encoder and decoder
+    encoder_mode = cfg.get("encoder_causal_activation")
+    decoder_mode = cfg.get("decoder_causal_activation")
+
+    if encoder_mode:
+        student = patch_gpt2_activations(
+            student, mode=encoder_mode, target_submodules=["encoder"]
+        )
+        print(f"  Encoder causal activation patched: mode={encoder_mode}")
+
+    if decoder_mode:
+        student = patch_gpt2_activations(
+            student, mode=decoder_mode, target_submodules=["decoder"]
+        )
+        print(f"  Decoder causal activation patched: mode={decoder_mode}")
+
     optimizer = initialize_optimizer(cfg, student)
     scheduler = initialize_scheduler(cfg, student, optimizer)
     return student, optimizer, scheduler

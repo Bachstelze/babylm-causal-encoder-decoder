@@ -89,6 +89,28 @@ def get_config():
         help="Encoder activation function (e.g. gelu_new, relu, gelu)",
     )
 
+    # Causal activations (set per module; overrides activation_function strings)
+    parser.add_argument(
+        "--encoder_causal_activation",
+        type=str,
+        default=None,
+        help=(
+            "Replace encoder GPT2MLP activations with a causal reduction. "
+            "Modes: matrix, context, max_matrix, max_context, min_context, mean. "
+            "Leave unset to use standard encoder_activation_function."
+        ),
+    )
+    parser.add_argument(
+        "--decoder_causal_activation",
+        type=str,
+        default=None,
+        help=(
+            "Replace decoder GPT2MLP activations with a causal reduction. "
+            "Modes: matrix, context, max_matrix, max_context, min_context, mean. "
+            "Leave unset to use standard decoder_activation_function."
+        ),
+    )
+
     # Decoder parameters
     parser.add_argument("--decoder_n_layer", type=int, help="Number of decoder layers")
     parser.add_argument(

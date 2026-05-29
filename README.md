@@ -4,14 +4,15 @@ BabyLM 2026 Baselines
 This repository contains the code used to train the baselines for the 2026 iteration of the BabyLM Challenge:
 
 - `causal-encoder-decoder` — Adapted encoder-decoder from GPT2 for Strict / Strict-Small / Multilingual tracks (see below).
-- `strict-gpt2`  — Code for the naive GPT-2 baseline for Strict/Strict-Small/Multilingual tracks
+- `causal_activation` — Clone of [causal generation](https://gitlab.com/Bachstelze/causal_generation)
+- `strict-gpt2` — Code for the naive GPT-2 baseline for Strict/Strict-Small/Multilingual tracks
 - `strict-interaction` — Past year's GPT2 Interaction track baseline adapted to Strict/Strict-Small.
 
 ---
 
 ## Files modified since the fork
 
-Add the folder `causal-encoder-decoder`.
+Add the folder `causal-encoder-decoder` as clone from `strict-gpt2`.
 
 | File | What changed |
 |---|---|
@@ -54,38 +55,53 @@ python training.py \
   --source_ratio 0.3
 ```
 
-### Adding a custom activation function
+### Causal activation replacement
 
-The activation function is chosen via a string (`"gelu_new"`, `"relu"`, `"gelu"`, `"silu"`, ...) stored in `GPT2Config.activation_function`.  Hugging Face resolves this string to a PyTorch callable using the `ACT2FN` dictionary in `transformers/activations.py`.  To add a new activation (e.g. `"custom_swish"`):
+The `causal_activation/` package provides **causal reduction functions** that replace standard element-wise activations (GELU, ReLU, etc.) in GPT-2 MLP layers.  Based on ["Breaking the Attention Bottleneck"](https://arxiv.org/html/2406.10906v1), these functions perform pairwise token reduction along the sequence dimension, introducing a structured inter-token operation without learned parameters.
 
-1. **Option A — global monkey-patch** (simplest, no HF fork needed):
+#### Usage
 
-   ```python
-   from transformers.activations import ACT2FN
+**strict-gpt2** — pass `--causal_activation`:
 
-   def custom_swish(x):
-       return x * torch.sigmoid(2.0 * x)
+```bash
+python training.py --causal_activation matrix
+```
 
-   ACT2FN["custom_swish"] = custom_swish
-   ```
+**causal-encoder-decoder** — patch encoder and decoder independently:
 
-   Place this at the top of `models.py` (before building any config) so the string is resolved when `GPT2Config` constructs the model layers.
+```bash
+python training.py \
+  --encoder_causal_activation matrix \
+  --decoder_causal_activation context
+```
 
-2. **Option B — layer patching after model creation**:
+Available modes:
 
-   ```python
-   import torch.nn as nn
+| Mode | Description |
+|---|---|
+| `matrix` | Pairwise min with previous token |
+| `context` | Pairwise min + global mean (causal_context_unity_matrix) |
+| `max_matrix` | Pairwise max with previous token |
+| `max_context` | Pairwise max + global mean |
+| `min_context` | Pairwise min + global min comparison |
+| `mean` | Pairwise mean with previous token |
 
-   class CustomSwish(nn.Module):
-       def forward(self, x):
-           return x * torch.sigmoid(2.0 * x)
+#### How it works
 
-   # Patch every GPT2MLP in the encoder and decoder
-   for module in student.modules():
-       if hasattr(module, "act"):
-           module.act = CustomSwish()
-   ```
+After model creation, `patch_gpt2_activations()` walks through every `GPT2MLP` layer and replaces `self.act` with a `CausalActivation(nn.Module)` wrapper.  The wrapper applies a `torch.vmap`-vectorized causal reduction across the batch dimension, so the operation is fully differentiable and GPU-friendly.
 
-   This approach works if you need a stateful/parameterized activation (e.g. learned slope).
+#### Manual programmatic use
 
-3. **Option C — fork HF transformers** and add your function to `ACT2FN` in `src/transformers/activations.py`.
+```python
+from causal_activation import CausalActivation, patch_gpt2_activations, register_causal_activations
+
+# Option A: layer patching (recommended)
+model = GPT2LMHeadModel(config)
+patch_gpt2_activations(model, mode="matrix")           # all layers
+patch_gpt2_activations(model, mode="context",
+                       target_submodules=["encoder"])    # encoder only
+
+# Option B: ACT2FN monkey-patch (call before creating any config)
+register_causal_activations()
+config.activation_function = "causal_matrix"  # now resolves correctly
+```

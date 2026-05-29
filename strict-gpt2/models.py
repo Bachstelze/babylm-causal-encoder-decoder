@@ -3,30 +3,42 @@
 # All functions related to loading and saving models
 
 import os
+import sys
+
 import torch
-from utils import mkdir
-import gc
-
 import transformers
-from transformers import GPT2LMHeadModel, GPT2Config
+from transformers import GPT2Config, GPT2LMHeadModel
 from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
+from utils import mkdir
 
-DEVICE = torch.device('cuda') if torch.cuda.is_available() \
-    else torch.device('cpu')
+# Make causal_activation importable (sibling directory)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from causal_activation import patch_gpt2_activations  # noqa: E402
+
+DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 
 ## INITIALIZATION ##
 def initialize_model_and_optimizers(cfg):
     student = initialize_model(cfg)
+
+    # Apply causal activation replacement if configured
+    causal_mode = cfg.get("causal_activation")
+    if causal_mode:
+        student = patch_gpt2_activations(student, mode=causal_mode)
+        print(f"  Causal activation patched: mode={causal_mode}")
+
     optimizer = initialize_optimizer(cfg, student)
-    scheduler = initialize_scheduler(cfg, student, optimizer) 
+    scheduler = initialize_scheduler(cfg, student, optimizer)
     return student, optimizer, scheduler
 
+
 def initialize_model(cfg):
-    dataset_name = cfg['dataset']
+    dataset_name = cfg["dataset"]
     config = GPT2Config.from_pretrained(f"./configs/{dataset_name}")
     student = GPT2LMHeadModel(config).to(DEVICE)
     return student
+
 
 def get_parameter_names(model, forbidden_layer_types):
     """
@@ -43,46 +55,55 @@ def get_parameter_names(model, forbidden_layer_types):
     result += list(model._parameters.keys())
     return result
 
+
 def initialize_optimizer(cfg, student):
-    lr = cfg['learning_rate']    
-    decay_parameters = get_parameter_names(student, ALL_LAYERNORM_LAYERS)    
+    lr = cfg["learning_rate"]
+    decay_parameters = get_parameter_names(student, ALL_LAYERNORM_LAYERS)
     decay_parameters = [name for name in decay_parameters if "bias" not in name]
     optimizer_grouped_parameters = [
         {
             "params": [
-                p for n, p in student.named_parameters() if (n in decay_parameters and p.requires_grad)
+                p
+                for n, p in student.named_parameters()
+                if (n in decay_parameters and p.requires_grad)
             ],
             "weight_decay": cfg["weight_decay"],
         },
         {
             "params": [
-                p for n, p in student.named_parameters() if (n not in decay_parameters and p.requires_grad)
+                p
+                for n, p in student.named_parameters()
+                if (n not in decay_parameters and p.requires_grad)
             ],
             "weight_decay": 0.0,
         },
     ]
 
     optimizer = torch.optim.AdamW(
-        optimizer_grouped_parameters, lr=lr, eps=1e-8, betas=(0.9, 0.999) 
+        optimizer_grouped_parameters, lr=lr, eps=1e-8, betas=(0.9, 0.999)
     )
 
     return optimizer
 
+
 def initialize_scheduler(cfg, student, optimizer):
     num_training_steps = cfg["num_training_steps"]
     num_warmup_steps = cfg["num_warmup_steps"]
-    scheduler = transformers.get_cosine_schedule_with_warmup(optimizer, num_warmup_steps = num_warmup_steps,
-                                                             num_training_steps = num_training_steps)
+    scheduler = transformers.get_cosine_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=num_warmup_steps,
+        num_training_steps=num_training_steps,
+    )
     return scheduler
+
 
 ## SAVING AND LOADING ##
 def save_epoch_checkpoint(student, optimizer, scheduler, epoch, checkpoint_dir):
     # Open a folder for the round
-    folder = os.path.join(checkpoint_dir, f'epoch_{epoch}')
+    folder = os.path.join(checkpoint_dir, f"epoch_{epoch}")
     mkdir(folder)
 
     # Save the metrics and model
-    torch.save(optimizer.state_dict(), os.path.join(folder, 'latest_optimizer.pt'))
-    torch.save(scheduler.state_dict(), os.path.join(folder, 'latest_scheduler.pt'))
-    torch.save(student.state_dict(), os.path.join(folder, 'latest_student.pt'))
-
+    torch.save(optimizer.state_dict(), os.path.join(folder, "latest_optimizer.pt"))
+    torch.save(scheduler.state_dict(), os.path.join(folder, "latest_scheduler.pt"))
+    torch.save(student.state_dict(), os.path.join(folder, "latest_student.pt"))

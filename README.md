@@ -21,6 +21,13 @@ Add the folder `causal-encoder-decoder` as clone from `strict-gpt2`.
 | `causal-encoder-decoder/data_utils.py` | Replaced `FullBabyLMDataset` with `FullEncoderDecoderDataset` that splits each chunk into source (first N%) and target (remaining + bos/eos). Collate function pads source and target separately, masks pad tokens in labels with `-100`. |
 | `causal-encoder-decoder/utils.py` | Added CLI arguments for all encoder/decoder config knobs (`--encoder_n_layer`, `--decoder_activation_function`, etc.) and `--source_ratio`, `--from_pretrained`, `--model_name_or_path`, `--decoder_start_token_id`. |
 | `causal-encoder-decoder/config.yaml` | Added all new configuration keys with sensible defaults (6-layer, 768-embd encoder and decoder, `gelu_new` activations, 50% source ratio).
+| `causal_activation/__init__.py` | New package file. Provides `CausalActivation(nn.Module)` wrapper with 6 causal reduction modes (`matrix`, `context`, `max_matrix`, `max_context`, `min_context`, `mean`), `patch_gpt2_activations()` for runtime layer patching (supports per-module targeting via `target_submodules`), and `register_causal_activations()` for `ACT2FN` monkey-patching.
+| `strict-gpt2/models.py` | Added `sys.path` hook to import `causal_activation` from sibling directory. In `initialize_model_and_optimizers()`, added optional `patch_gpt2_activations()` call controlled by `cfg["causal_activation"]`.
+| `strict-gpt2/utils.py` | Added `--causal_activation` CLI argument.
+| `strict-gpt2/config.yaml` | Added `"causal_activation": null` default key with documentation comment.
+| `causal-encoder-decoder/models.py` | Added `sys.path` hook to import `causal_activation` from sibling directory. In `initialize_model_and_optimizers()`, added optional `patch_gpt2_activations()` calls for encoder and decoder independently, controlled by `cfg["encoder_causal_activation"]` and `cfg["decoder_causal_activation"]`.
+| `causal-encoder-decoder/utils.py` | Added `--encoder_causal_activation` and `--decoder_causal_activation` CLI arguments.
+| `causal-encoder-decoder/config.yaml` | Added `"encoder_causal_activation": null` and `"decoder_causal_activation": null` default keys with documentation comment.
 
 ## `causal-encoder-decoder`: Encoder-Decoder Baseline
 
